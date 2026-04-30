@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mumzworld — AI Email Triage</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --rose:      #E8445A;
+      --rose-soft: #FDF0F2;
+      --rose-mid:  #F9CDD3;
+      --ink:       #1A1118;
+      --ink-60:    #7A6570;
+      --ink-30:    #C8BEC3;
+      --cream:     #FBF7F5;
+      --white:     #FFFFFF;
+      --high:      #E8445A;
+      --med:       #F59E0B;
+      --low:       #10B981;
+      --card-r:    16px;
+      --shadow:    0 4px 24px rgba(26,17,24,0.08);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--cream);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--white);
+      border-bottom: 1px solid var(--rose-mid);
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .logo-dot {
+      width: 36px; height: 36px;
+      background: var(--rose);
+      border-radius: 50%;
+      display: grid; place-items: center;
+      color: white; font-size: 18px;
+    }
+    .logo-text { font-family: 'DM Serif Display', serif; font-size: 20px; }
+    .logo-sub  { font-size: 12px; color: var(--ink-60); font-weight: 300; letter-spacing: 0.05em; text-transform: uppercase; }
+
+    /* ── Layout ── */
+    .container { max-width: 960px; margin: 0 auto; padding: 40px 24px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media(max-width:720px){ .grid { grid-template-columns: 1fr; } }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--white);
+      border-radius: var(--card-r);
+      padding: 28px;
+      box-shadow: var(--shadow);
+    }
+    .card-title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--ink-60);
+      margin-bottom: 16px;
+    }
+
+    /* ── Textarea ── */
+    textarea {
+      width: 100%;
+      height: 200px;
+      border: 1.5px solid var(--ink-30);
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      color: var(--ink);
+      background: var(--cream);
+      resize: vertical;
+      transition: border-color 0.2s;
+      line-height: 1.6;
+    }
+    textarea:focus { outline: none; border-color: var(--rose); }
+
+    /* ── Samples ── */
+    .samples { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px; }
+    .sample-btn {
+      font-size: 11px;
+      padding: 5px 12px;
+      border: 1px solid var(--rose-mid);
+      border-radius: 20px;
+      background: var(--rose-soft);
+      color: var(--rose);
+      cursor: pointer;
+      font-family: 'DM Sans', sans-serif;
+      transition: all 0.15s;
+    }
+    .sample-btn:hover { background: var(--rose); color: white; }
+
+    /* ── Submit button ── */
+    .submit-btn {
+      margin-top: 18px;
+      width: 100%;
+      padding: 14px;
+      background: var(--rose);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: 0.02em;
+      transition: opacity 0.2s, transform 0.15s;
+    }
+    .submit-btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+    .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Result panel ── */
+    .result-panel { grid-column: 1 / -1; display: none; }
+    .result-panel.visible { display: block; }
+
+    .result-grid { display: grid; grid-template-columns: repeat(3,1fr) 1fr; gap: 14px; margin-bottom: 20px; }
+    @media(max-width:600px){ .result-grid { grid-template-columns: 1fr 1fr; } }
+
+    .stat-box {
+      background: var(--cream);
+      border-radius: 10px;
+      padding: 16px 18px;
+    }
+    .stat-label { font-size: 10px; color: var(--ink-60); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+    .stat-value { font-size: 18px; font-weight: 600; }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: capitalize;
+    }
+    .badge-high    { background: #FEE2E5; color: var(--high); }
+    .badge-medium  { background: #FEF3C7; color: #D97706; }
+    .badge-low     { background: #D1FAE5; color: #065F46; }
+    .badge-escalate{ background: #FEE2E5; color: var(--high); }
+    .badge-safe    { background: #D1FAE5; color: #065F46; }
+
+    .conf-bar-wrap { background: var(--rose-mid); border-radius: 4px; height: 6px; margin-top: 8px; overflow: hidden; }
+    .conf-bar { height: 100%; background: var(--rose); border-radius: 4px; transition: width 0.6s ease; }
+
+    .reply-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    @media(max-width:600px){ .reply-grid { grid-template-columns: 1fr; } }
+
+    .reply-box {
+      background: var(--cream);
+      border-radius: 10px;
+      padding: 16px 18px;
+    }
+    .reply-lang { font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-60); margin-bottom: 8px; font-weight: 600; }
+    .reply-text { font-size: 13.5px; line-height: 1.7; color: var(--ink); }
+    .reply-text[dir="rtl"] { font-size: 14px; }
+
+    .reasoning-box {
+      background: var(--rose-soft);
+      border-left: 3px solid var(--rose);
+      border-radius: 0 10px 10px 0;
+      padding: 14px 18px;
+      font-size: 13.5px;
+      line-height: 1.6;
+      color: var(--ink);
+      margin-top: 16px;
+    }
+
+    .uncertainty-box {
+      background: #FFFBEB;
+      border-left: 3px solid var(--med);
+      border-radius: 0 10px 10px 0;
+      padding: 12px 18px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #92400E;
+      margin-top: 10px;
+    }
+
+    .loading {
+      display: none;
+      text-align: center;
+      padding: 40px;
+      color: var(--ink-60);
+      font-size: 14px;
+    }
+    .loading.visible { display: block; }
+    .spinner {
+      width: 32px; height: 32px;
+      border: 3px solid var(--rose-mid);
+      border-top-color: var(--rose);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-box {
+      display: none;
+      background: #FEE2E5;
+      border-radius: 10px;
+      padding: 16px 20px;
+      color: var(--rose);
+      font-size: 13.5px;
+      margin-top: 16px;
+    }
+    .error-box.visible { display: block; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-dot">م</div>
+  <div>
+    <div class="logo-text">Mumzworld</div>
+    <div class="logo-sub">AI Customer Service Triage</div>
+  </div>
+</header>
+
+<div class="container">
+  <div class="grid">
+
+    <!-- Input Card -->
+    <div class="card">
+      <div class="card-title">Customer Email</div>
+      <textarea id="emailInput" placeholder="Paste a customer email here (English or Arabic)…"></textarea>
+
+      <div class="samples">
+        <span style="font-size:11px;color:var(--ink-60);align-self:center;">Try:</span>
+        <button class="sample-btn" onclick="loadSample('return')">Return request</button>
+        <button class="sample-btn" onclick="loadSample('angry')">Angry complaint</button>
+        <button class="sample-btn" onclick="loadSample('arabic')">Arabic order</button>
+        <button class="sample-btn" onclick="loadSample('safety')">Safety alert</button>
+        <button class="sample-btn" onclick="loadSample('spam')">Spam</button>
+        <button class="sample-btn" onclick="loadSample('vague')">Vague email</button>
+      </div>
+
+      <button class="submit-btn" id="submitBtn" onclick="triageEmail()">Triage Email →</button>
+    </div>
+
+    <!-- Info Card -->
+    <div class="card">
+      <div class="card-title">How It Works</div>
+      <p style="font-size:13.5px;line-height:1.8;color:var(--ink-60);">
+        Paste any customer service email — in English or Arabic — and the AI will:
+      </p>
+      <br/>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <div style="width:28px;height:28px;min-width:28px;background:var(--rose-soft);border-radius:8px;display:grid;place-items:center;font-size:14px;">📌</div>
+          <div style="font-size:13.5px;line-height:1.6;"><strong>Classify intent</strong><br/><span style="color:var(--ink-60);">Return, order issue, product query, complaint, or spam</span></div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <div style="width:28px;height:28px;min-width:28px;background:var(--rose-soft);border-radius:8px;display:grid;place-items:center;font-size:14px;">⚡</div>
+          <div style="font-size:13.5px;line-height:1.6;"><strong>Set urgency & escalation</strong><br/><span style="color:var(--ink-60);">Safety issues, legal threats & media mentions auto-escalate</span></div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <div style="width:28px;height:28px;min-width:28px;background:var(--rose-soft);border-radius:8px;display:grid;place-items:center;font-size:14px;">🌍</div>
+          <div style="font-size:13.5px;line-height:1.6;"><strong>Draft bilingual reply</strong><br/><span style="color:var(--ink-60);">Natural English + Gulf-friendly Arabic, not a translation</span></div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <div style="width:28px;height:28px;min-width:28px;background:var(--rose-soft);border-radius:8px;display:grid;place-items:center;font-size:14px;">🤔</div>
+          <div style="font-size:13.5px;line-height:1.6;"><strong>Express uncertainty</strong><br/><span style="color:var(--ink-60);">Low-confidence emails are flagged, never silently guessed</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div class="loading card" id="loadingDiv" style="grid-column:1/-1;">
+      <div class="spinner"></div>
+      Analysing email…
+    </div>
+
+    <!-- Error -->
+    <div class="error-box" id="errorBox" style="grid-column:1/-1;"></div>
+
+    <!-- Result Panel -->
+    <div class="result-panel card" id="resultPanel">
+      <div class="card-title">Triage Result</div>
+
+      <div class="result-grid" id="statsGrid"></div>
+
+      <div style="margin:4px 0 16px;font-size:12px;color:var(--ink-60);">Confidence</div>
+      <div class="conf-bar-wrap"><div class="conf-bar" id="confBar" style="width:0%"></div></div>
+
+      <div class="reasoning-box" id="reasoningBox"></div>
+      <div class="uncertainty-box" id="uncertaintyBox" style="display:none;"></div>
+
+      <div style="margin-top:24px;">
+        <div class="card-title">Suggested Replies</div>
+        <div class="reply-grid" id="replyGrid"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const SAMPLES = {
+  return: "Hi Mumzworld team,\n\nI placed order #MW-88123 last Tuesday for a Chicco stroller in grey, but I received the pink one instead. I'd like to return it and get the correct colour.\n\nThanks,\nSarah",
+  angry:  "This is completely unacceptable. I ordered a baby monitor 3 weeks ago and it still hasn't arrived. I've sent 4 emails and called twice with no response. I'm going to post about this on Instagram and contact consumer protection if this isn't resolved TODAY.",
+  arabic: "السلام عليكم،\nلم يصلني طلبي رقم MW-55991 منذ أسبوعين رغم أن الموقع يقول تم التسليم. أرجو التحقق من ذلك بأسرع وقت. شكراً",
+  safety: "Hello, I bought your Mumzworld baby lotion last week. This morning my daughter broke out in hives all over her face after I applied it. She's 4 months old. Please help.",
+  spam:   "CONGRATULATIONS!!! You have WON a FREE iPhone 15!!! Click here NOW → www.fakeprize.ru LIMITED TIME OFFER!!!",
+  vague:  "Hi, I have a question about something I ordered."
+};
+
+function loadSample(key) {
+  document.getElementById('emailInput').value = SAMPLES[key];
+}
+
+function urgencyClass(u) {
+  return `badge badge-${u}`;
+}
+
+async function triageEmail() {
+  const email = document.getElementById('emailInput').value.trim();
+  if (!email) return;
+
+  const submitBtn = document.getElementById('submitBtn');
+  const loading   = document.getElementById('loadingDiv');
+  const errorBox  = document.getElementById('errorBox');
+  const resultPanel = document.getElementById('resultPanel');
+
+  submitBtn.disabled = true;
+  loading.classList.add('visible');
+  errorBox.classList.remove('visible');
+  resultPanel.classList.remove('visible');
+
+  try {
+    const res = await fetch('/triage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || 'Server error');
+    }
+
+    const data = await res.json();
+    renderResult(data);
+  } catch(e) {
+    errorBox.textContent = '⚠ ' + e.message;
+    errorBox.classList.add('visible');
+  } finally {
+    loading.classList.remove('visible');
+    submitBtn.disabled = false;
+  }
+}
+
+function renderResult(d) {
+  // Stats
+  const intentLabels = {
+    return_request: 'Return / Exchange',
+    order_issue: 'Order Issue',
+    product_query: 'Product Query',
+    complaint: 'Complaint',
+    spam: 'Spam',
+    other: 'Other'
+  };
+  document.getElementById('statsGrid').innerHTML = `
+    <div class="stat-box">
+      <div class="stat-label">Intent</div>
+      <div class="stat-value" style="font-size:15px">${intentLabels[d.intent] || d.intent}</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Urgency</div>
+      <div class="stat-value"><span class="${urgencyClass(d.urgency)}">${d.urgency}</span></div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Escalate?</div>
+      <div class="stat-value"><span class="badge ${d.escalate ? 'badge-escalate' : 'badge-safe'}">${d.escalate ? '⚠ Yes' : '✓ No'}</span></div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">Confidence</div>
+      <div class="stat-value">${Math.round(d.confidence * 100)}%</div>
+    </div>
+  `;
+
+  // Confidence bar
+  document.getElementById('confBar').style.width = (d.confidence * 100) + '%';
+
+  // Reasoning
+  document.getElementById('reasoningBox').textContent = '💬 ' + d.reasoning;
+
+  // Uncertainty note
+  const uBox = document.getElementById('uncertaintyBox');
+  if (d.uncertainty_note) {
+    uBox.textContent = '⚠ Uncertainty: ' + d.uncertainty_note;
+    uBox.style.display = 'block';
+  } else {
+    uBox.style.display = 'none';
+  }
+
+  // Replies
+  const rGrid = document.getElementById('replyGrid');
+  if (d.suggested_reply_en || d.suggested_reply_ar) {
+    rGrid.innerHTML = `
+      ${d.suggested_reply_en ? `
+      <div class="reply-box">
+        <div class="reply-lang">🇬🇧 English</div>
+        <div class="reply-text">${d.suggested_reply_en.replace(/\n/g,'<br/>')}</div>
+      </div>` : ''}
+      ${d.suggested_reply_ar ? `
+      <div class="reply-box">
+        <div class="reply-lang">🇸🇦 Arabic</div>
+        <div class="reply-text" dir="rtl">${d.suggested_reply_ar.replace(/\n/g,'<br/>')}</div>
+      </div>` : ''}
+    `;
+  } else {
+    rGrid.innerHTML = '<div style="color:var(--ink-60);font-size:13.5px;padding:12px 0;">No reply generated — email is spam or intent is unclear.</div>';
+  }
+
+  document.getElementById('resultPanel').classList.add('visible');
+  document.getElementById('resultPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+</script>
+</body>
+</html>
