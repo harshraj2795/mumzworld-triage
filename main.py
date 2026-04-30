@@ -18,8 +18,8 @@ import httpx
 app = FastAPI(title="Mumzworld Email Triage")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
-OPENROUTER_URL = "https://api.mistral.ai/v1/chat/completions"
+MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "")
+MISTRAL_URL = "https://api.mistral.ai/v1/chat/completions"
 MODEL = "mistral-small-latest"
 
 # ── Pydantic schema ──────────────────────────────────────────────────────────
@@ -71,8 +71,8 @@ async def triage_email(payload: dict):
     if not email_text:
         raise HTTPException(status_code=400, detail="Email text is required")
 
-    if not OPENROUTER_API_KEY:
-        raise HTTPException(status_code=500, detail="OPENROUTER_API_KEY not set")
+    if not MISTRAL_API_KEY:
+        raise HTTPException(status_code=500, detail="MISTRAL_API_KEY not set")
 
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
@@ -81,9 +81,9 @@ async def triage_email(payload: dict):
 
     async with httpx.AsyncClient(timeout=30) as client:
         response = await client.post(
-            OPENROUTER_URL,
+            MISTRAL_URL,
             headers={
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Authorization": f"Bearer {MISTRAL_API_KEY}",
                 "Content-Type": "application/json",
             },
             json={
