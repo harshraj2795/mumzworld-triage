@@ -81,8 +81,10 @@ Each test case checks: intent match, urgency bracket, escalation flag, and confi
 | Category | Score |
 |---|---|
 | Easy cases (TC01–06, TC09, TC11–12) | 9/9 |
-| Adversarial (TC07, TC08, TC10) | 3/3 |
-| **Total** | **12/12** |
+| Adversarial (TC07, TC08, TC10) | 2/3 |
+| **Total** | **10/12 (83%)** |
+
+**Failures:** TC04 (complaint misclassified as order_issue), TC12 (Arabic complaint intent confusion) — both edge cases with Mistral Small's instruction following.\
 
 ### Known failure modes
 - Very short emails (< 5 words) sometimes get `other` instead of the correct intent — mitigated by the `uncertainty_note` field
